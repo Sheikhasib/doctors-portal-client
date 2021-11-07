@@ -4,6 +4,9 @@ import {
   getAuth,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithPopup,
+  updateProfile,
   signOut,
   onAuthStateChanged,
 } from "firebase/auth";
@@ -17,12 +20,45 @@ const useFirebase = () => {
   const [authError, setAuthError] = useState("");
 
   const auth = getAuth();
+  const googleProvider = new GoogleAuthProvider();
 
-  const registerUser = (email, password) => {
+  const signInWithGoogle = (location, history) => {
+    setIsLoading(true);
+    signInWithPopup(auth, googleProvider)
+      .then((result) => {
+        const user = result.user;
+        // upsert user to the database
+        saveUser(user.email, user.displayName, 'PUT');
+        // saveGoogleUser(user.email, user.displayName);
+        setAuthError('');
+        const destination = location?.state?.from || "/";
+        history.replace(destination);
+      })
+      .catch((error) => {
+        setAuthError(error.message);
+      })
+      .finally(() => setIsLoading(false));
+  };
+
+  const registerUser = (email, password, name,  history) => {
     setIsLoading(true);
     createUserWithEmailAndPassword(auth, email, password)
       .then((userCredential) => {
         setAuthError("");
+        const newUser = {email, displayName: name};
+        setUser(newUser);
+        // save user to the database
+        saveUser(email, name, "POST");
+        // send name to firebase after creation
+        updateProfile(auth.currentUser, {
+            displayName: name
+          }).then(() => {
+            
+          })
+          .catch((error) => {
+            
+          });
+        history.replace('/');
       })
       .catch((error) => {
         setAuthError(error.message);
@@ -35,8 +71,8 @@ const useFirebase = () => {
     setIsLoading(true);
     signInWithEmailAndPassword(auth, email, password)
       .then((userCredential) => {
-          const destination = location?.state?.from || '/';
-          history.replace(destination);
+        const destination = location?.state?.from || "/";
+        history.replace(destination);
         setAuthError("");
       })
       .catch((error) => {
@@ -70,10 +106,37 @@ const useFirebase = () => {
       .finally(() => setIsLoading(false));
   };
 
+  // save or upsert user data to database(mongodb)
+  const saveUser = (email, displayName, method) => {
+    const user = {email, displayName};
+    fetch('http://localhost:5000/users', {
+      method: method,
+      headers: {
+        'content-type': 'application/json'
+      },
+      body:JSON.stringify(user)
+    })
+    .then()
+  }
+
+  // // upsert user data to database(mongodb)
+  // const saveGoogleUser = (email, displayName) => {
+  //   const user = {email, displayName};
+  //   fetch('http://localhost:5000/users', {
+  //     method: 'PUT',
+  //     headers: {
+  //       'content-type': 'application/json'
+  //     },
+  //     body:JSON.stringify(user)
+  //   })
+  //   .then()
+  // }
+
   return {
     user,
     isLoading,
     authError,
+    signInWithGoogle,
     registerUser,
     loginUser,
     logOut,
